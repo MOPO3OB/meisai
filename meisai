@@ -1,0 +1,305 @@
+#!/usr/bin/env ruby
+
+# This is the CLI interface module (part of MeiSai Framework)
+
+# The shebang on the first is required in order to tell system how to process the file
+# Having shebang like that is equal to running "$(which ruby) meisai" in the terminal
+# This makes it not necessary to have ".rb" file extension
+# This is useful since this file is the interface through which user interacts with the whole framework
+
+# Loads library for parsing arguments
+require "optparse"
+
+# Sets the version of the framework
+@version = "0.0.1"
+
+# This will guarantee the correct usage information regardless of this file's name
+@meisai = File.basename(__FILE__)
+
+# Puts a random welcoming banner
+def show_banner
+  # Array containing banners
+  banners = [" __  __      _ ____        _ \n|  \\/  | ___(_) ___|  __ _(_)\n| |\\/| |/ _ \\ \\___ \\ / _\` | |\n| |  | |  __/ |___) | (_| | |\n|_|  |_|\\___|_|____/ \\__,_|_|\n\n", "                      _       _._\n               _,,-''' ''-,_ }'._''.,_.=._\n            ,-'      _ _    '        (  @)'-,\n          ,'  _..==;;::_::'-     __..----'''}\n         :  .'::_;==''       ,'',: : : '' '}\n        }  '::-'            /   },: : : :_,'\n       :  :'     _..,,_    '., '._-,,,--\\'    _\n      :  ;   .-'       :      '-, ';,__\\.\\_.-'\n     {   '  :    _,,,   :__,,--::',,}___}^}_.-'\n     }        _,'__''',  ;_.-''_.-'\n    :      ,':-''  ';, ;  ;_..-'\n_.-' }    ,',' ,''',  : ^^\n_.-''{    { ; ; ,', '  :\n      }   } :  ;_,' ;  }\n       {   ',',___,'   '     ....MeiSai....\n        ',           ,'\n          '-,,__,,-'\n\n"]
+  # Prints a randomly chosen banner
+  puts banners[rand(0..banners.length-1)]
+end
+
+# Hash used for storing parameters provided to the framework
+options = {}
+
+# Following block is responsible for parsing the arguments
+optparse = OptionParser.new do |opts|
+  # Usage information
+  opts.banner = "Usage: #{@meisai} [options] image_file <file_to_hide>"
+  
+  # Rest are the parameter blocks that program can process
+  opts.on( "-t", "--text TEXT", "Text to hide" ) do |text|
+    # Saves the parameter so it can be accessed later on
+    options[:text] = text
+  end
+
+  opts.on( "-o", "--output FILE", "Output file" ) do |file|
+    options[:output_file] = file
+  end
+
+  opts.on( "-x", "--execute", "Execute the hidden data" ) do
+    options[:execute] = true
+  end
+
+  opts.on( "-a", "--alpha", "Use alpha channel" ) do
+    options[:alpha] = true
+  end
+
+  opts.on( "-c", "--compression LEVEL", "Compression level [0-9], default: 6" ) do |level|
+    options[:compression_level] = level
+  end
+
+  opts.on( "-d", "--bit-depth DEPTH", "Bit depth [1,2 or 4], default: 1" ) do |depth|
+    options[:bit_depth] = depth
+  end
+
+  opts.on( "-i", "--info", "Only print info about the file" ) do
+    options[:info] = true
+  end
+
+  opts.on( "--verbose", "Verbose output" ) do
+    options[:verbose] = true
+  end
+
+  opts.on( "-q", "--quite", "Hide any output except for result" ) do
+    options[:quite] = true
+  end
+   
+  opts.on( "-h", "--help", "Show this message" ) do
+    puts opts
+    exit 0
+  end
+
+  opts.on( "-v", "--version", "Show version") do
+    puts "MeiSai Framework v" + @version
+    exit 0
+  end
+end
+
+# Checks if file provided is valid
+def check_file(file)
+  if !File.exist?(file)
+    puts "File \"#{file}\" does not exist"
+  elsif !File.file?(file)
+    puts "\"#{file}\" is not a file"
+  elsif !File.readable?(file)
+    puts "File \"#{file}\" is not readable"
+  elsif File.zero?(file)
+    puts "File \"#{file}\" is empty"
+  else
+    # This return prevents program from exiting
+    return true
+  end
+  exit 0
+end
+
+# Verifies that options provided to the program are correct
+def verify_input(options)
+  if options[:text] and options[:file_to_hide]
+    puts "Option -t cannot be used when file to hide is provided"
+    exit 0
+  end
+  if options[:image_file]
+    check_file(options[:image_file])
+  end
+  if options[:file_to_hide]
+    check_file(options[:file_to_hide])
+  end
+  if options[:text] or options[:file_to_hide] and !options[:output_file]
+    puts "Output file must be provided"
+    exit 0
+  end
+  if options[:output_file] and options[:execute]
+    puts "Option -x cannot be used when output file is provided"
+    exit 0
+  end
+  if options[:compression_level]
+    raise "Invalid compression level" unless options[:compression_level].to_i.between?(0,9)
+    options[:compression_level] = options[:compression_level].to_i
+  else
+    options[:compression_level] = 6
+  end
+  if options[:bit_depth]
+    raise "Invalid bit depth" unless options[:bit_depth].to_i.between?(1,2) or options[:bit_depth].to_i == 4
+    options[:bit_depth] = options[:bit_depth].to_i
+  else
+    options[:bit_depth] = 1
+  end
+  options[:alpha] = false unless options[:alpha]
+  if options[:quite] and options[:verbose]
+    puts "Verbose and quite modes cannot be used together"
+    exit 0
+  else
+    # Sets the level of output, default is 1
+    if options[:quite]
+      @verbose = 0
+    elsif options[:verbose]
+      @verbose = 2
+    else
+      @verbose = 1
+    end
+  end
+end
+
+# Method used throughout the code to print information depending on the verbose level
+def info(verbose, level, text)
+  puts text if verbose >= level
+end
+
+# Main program's block
+begin
+  # Parses the arguments
+  optparse.parse!
+  
+  # Prints the banner unless executed in quite mode
+  show_banner unless options[:quite]
+  
+  # If the image is not provided
+  if !ARGV[0]
+    # Prints the usage information
+    puts optparse.banner
+  else
+    # If the image file is provided, saves its name
+    options[:image_file] = ARGV[0]
+
+    # If the file to hide is provided
+    if ARGV[1]
+      # Saves it
+      options[:file_to_hide] = ARGV[1]
+    end
+
+    # Verifies that options are legit
+    verify_input(options)
+
+    # Prints Ruby's version on verbose output
+    info(@verbose, 2, "Ruby Version: " + RUBY_VERSION)
+
+    # Prints the file name on verbose output
+    info(@verbose, 2, "Image file: " + options[:image_file])
+
+    # At this point it is safe to assume that PNG module will be involved
+    require_relative "png"
+    
+    # Verbose output
+    info(@verbose, 2, "Loaded PNG module")
+
+    # Initializes the new PNG instance using given parameters
+    image_file = PNG.new(options[:image_file], options[:bit_depth], options[:compression_level], options[:alpha], @verbose)
+
+    # If the information on the image was requested
+    if options[:info] then
+      # Verbose output
+      info(@verbose, 2, "Prints information about the file")
+
+      # Prints it and exits
+      image_file.print_info
+      exit 0
+    end
+    
+    # At this point it is safe to assume that Base64 module will be involved
+    require_relative "base64"
+
+    # Verbose output
+    info(@verbose, 2, "Loaded Base64 module")
+
+    # The hiding operation is requested
+    if options[:file_to_hide] or options[:text]
+
+      # Verbose output
+      info(@verbose, 2, "Hiding mode selected")
+      
+      # If the data to hide is provided in the input as text
+      if options[:text]
+        data_to_hide = options[:text]
+
+        # Verbose output
+        info(@verbose, 2, "Data to hide is read from the input")
+      # If the file must be hidden
+      else
+        data_to_hide = File.read(options[:file_to_hide])
+
+        # Verbose output
+        info(@verbose, 2, "Data to hide is read from the file")
+      end
+
+      # Encodes the data that will be hidden
+      data_to_hide = encode(data_to_hide, @verbose)
+
+      # Verbose output
+      info(@verbose, 2, "Encoded data size: #{data_to_hide.length} bytes")
+
+      # Ensures that it is possible to hide data of provided size inside the image
+      if image_file.available_size < data_to_hide.length
+        puts "Encoded data exceeds available size"
+        exit 0
+      end
+
+      # Unpacks the image data
+      image_file.unpack_image_data
+
+      # Embeds data inside of the image data
+      image_file.embed_data(data_to_hide)
+
+      # Generates new image file with the embedded data
+      image_file.save_file(options[:output_file])
+
+    # Executing or just extracting the data
+    else 
+
+      # Verbose output
+      info(@verbose, 2, "Extraction mode selected")
+
+      # Unpacks the image data
+      image_file.unpack_image_data
+
+      # Extracts the hidden data
+      extracted_data = image_file.extract_data
+
+      # Decodes the extracted data
+      decoded_data = decode(extracted_data, @verbose)
+
+      # If extracted data is supposed to be executed
+      if options[:execute]
+
+        begin
+          # Verbose output
+          info(@verbose, 2, "Executing data")
+
+          # Invokes system call using extracted data
+          system(decoded_data)
+
+        # Catches the interruption
+        rescue Interrupt => e
+          info(@verbose, 2, "Interrupted")
+        end
+
+      # Extracting data is not being executed
+      else
+
+        # Extracted data is supposed to be written to a file
+        if options[:output_file]
+          # Verbose output
+          info(@verbose, 2, "Writing data to a file: " + options[:output_file])
+
+          # Creates the new file and writes the extracted data
+          outfile = File.new(options[:output_file], "wb")
+          outfile.write(decoded_data)
+          outfile.close
+
+        # Extracted data is supposed to be printed
+        else
+          # Verbose output
+          info(@verbose, 2, "Printing data")
+          # Prints the extracted data
+          puts decoded_data
+
+        end
+      end
+    end
+  end
+end
